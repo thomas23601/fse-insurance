@@ -2,6 +2,67 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/db.php';
 
+// Appel FSEconomy datafeed
+function fetchFseAircraft(string $registration): ?array {
+    $key = getenv('FSE_SERVICE_KEY');
+    $url = 'https://server.fseconomy.net/data?' . http_build_query([
+        'servicekey' => $key,
+        'format'     => 'xml',
+        'query'      => 'aircraft',
+        'search'     => 'key',
+        'id'         => $registration,
+    ]);
+
+    $ctx = stream_context_create(['http' => ['timeout' => 10]]);
+    $xml = @file_get_contents($url, false, $ctx);
+    if (!$xml) return null;
+
+    $data = @simplexml_load_string($xml);
+    if (!$data) return null;
+
+    // Cherche l'avion dans la réponse
+    $ac = null;
+    if (isset($data->Aircraft)) {
+        $ac = $data->Aircraft;
+    } elseif (isset($data->AircraftItems->Aircraft)) {
+        $ac = $data->AircraftItems->Aircraft;
+        if (is_iterable($ac)) $ac = $ac[0];
+    }
+    if (!$ac) return null;
+
+    // Détermine le type
+    $makeModel = strtolower((string)($ac->MakeModel ?? $ac->makemodel ?? ''));
+    $engines   = (int)($ac->Engines ?? 1);
+    if (str_contains($makeModel, 'helicopter') || str_contains($makeModel, 'heli')) {
+        $type = 'heli';
+    } elseif (str_contains($makeModel, 'jet')) {
+        $type = $engines > 1 ? 'ME-jet' : 'SE-jet';
+    } elseif (str_contains($makeModel, 'turbo') || str_contains($makeModel, 'tbm') || str_contains($makeModel, 'pilatus')) {
+        $type = $engines > 1 ? 'ME-turbo' : 'SE-turbo';
+    } else {
+        $type = $engines > 1 ? 'ME-prop' : 'SE-prop';
+    }
+
+    $tbo     = (float)($ac->TimeBetweenOverhauls ?? 2000);
+    $airframe = (float)($ac->AirframeTime ?? 0);
+    $sinceOvh = (float)($ac->TimeSinceLastOverhaul ?? $airframe);
+
+    // Estimation prix moteur selon type
+    $enginePrices = ['SE-prop'=>8000,'ME-prop'=>12000,'SE-turbo'=>25000,'ME-turbo'=>40000,'SE-jet'=>60000,'ME-jet'=>90000,'heli'=>30000];
+    $enginePrice  = $enginePrices[$type] ?? 8000;
+
+    return [
+        'registration'  => strtoupper($registration),
+        'model'         => (string)($ac->MakeModel ?? 'Inconnu'),
+        'type'          => $type,
+        'home_base'     => (string)($ac->Home ?? $ac->Location ?? 'N/A'),
+        'engine_price'  => $enginePrice,
+        'tbo_hours'     => $tbo ?: 2000,
+        'current_hours' => $sinceOvh,
+        'status'        => (string)($ac->NeedsRepair ?? '0') === '0' ? 'OK' : 'EN PANNE',
+    ];
+}
+
 // Moteur de tarification
 function computeOffers(float $enginePrice, float $tboHours, float $currentHours): array {
     $ratio = $currentHours / $tboHours;
@@ -33,17 +94,12 @@ $error  = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
     $registration = strtoupper(trim($_POST['registration']));
 
-    // Simulation données FSE (en production : appel XML datafeed)
-    $aircraftData = [
-        'registration' => $registration,
-        'model'        => 'Cessna 172',
-        'type'         => 'SE-prop',
-        'home_base'    => 'LFPG',
-        'engine_price' => 8000,
-        'tbo_hours'    => 2000,
-        'current_hours'=> 842,
-        'status'       => 'OK',
-    ];
+    // Appel API FSEconomy
+    $aircraftData = fetchFseAircraft($registration);
+    if (!$aircraftData) {
+        $error = "Immatriculation « $registration » introuvable sur FSEconomy.";
+        $result = null;
+    }
 
     $offers = computeOffers($aircraftData['engine_price'], $aircraftData['tbo_hours'], $aircraftData['current_hours']);
     $result = ['aircraft' => $aircraftData, 'offers' => $offers];
