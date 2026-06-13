@@ -151,6 +151,10 @@ include __DIR__ . '/../includes/header.php';
     <h1 class="text-2xl font-bold text-slate-900 mb-2">Obtenir un devis</h1>
     <p class="text-slate-500 text-sm mb-8">Saisissez l'immatriculation FSE de votre avion pour voir vos options.</p>
 
+    <?php if ($error): ?>
+    <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded mb-6 text-sm"><?= htmlspecialchars($error) ?></div>
+    <?php endif; ?>
+
     <?php if (isLoggedIn() && !$userFseKey): ?>
     <div class="bg-amber-50 border-l-4 border-amber-400 text-amber-800 px-4 py-3 rounded mb-6 text-sm">
         ⚠️ Vous n'avez pas de clé FSEconomy enregistrée. <a href="/profile.php" class="underline font-semibold">Ajoutez-la dans votre profil</a> pour obtenir des devis sur vos avions.
