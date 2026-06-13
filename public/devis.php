@@ -4,29 +4,47 @@ require_once __DIR__ . '/../includes/db.php';
 
 // Appel FSEconomy datafeed
 function fetchFseAircraft(string $registration, string $fseKey): ?array {
-    $key = $fseKey;
     $url = 'https://server.fseconomy.net/data?' . http_build_query([
-        'servicekey' => $key,
+        'servicekey' => $fseKey,
         'format'     => 'xml',
         'query'      => 'aircraft',
         'search'     => 'key',
         'id'         => $registration,
     ]);
 
-    $ctx = stream_context_create(['http' => ['timeout' => 10]]);
+    $ctx = stream_context_create(['http' => ['timeout' => 15]]);
     $xml = @file_get_contents($url, false, $ctx);
     if (!$xml) return null;
 
     $data = @simplexml_load_string($xml);
     if (!$data) return null;
 
-    // Cherche l'avion dans la réponse
+    // Stocke le XML brut pour debug si besoin
+    $GLOBALS['_fse_debug_xml'] = substr($xml, 0, 800);
+
+    // Cherche l'avion — FSE peut retourner plusieurs structures selon la version
     $ac = null;
+    // Cas 1 : <AircraftItems><Aircraft>
     if (isset($data->Aircraft)) {
         $ac = $data->Aircraft;
-    } elseif (isset($data->AircraftItems->Aircraft)) {
-        $ac = $data->AircraftItems->Aircraft;
-        if (is_iterable($ac)) $ac = $ac[0];
+        if ($ac instanceof SimpleXMLElement && $ac->count() > 1) {
+            // Plusieurs avions — cherche le bon par immat
+            foreach ($ac as $item) {
+                if (strtoupper((string)$item->Registration) === strtoupper($registration)) {
+                    $ac = $item; break;
+                }
+            }
+        }
+    } elseif (isset($data->AircraftItems)) {
+        $items = $data->AircraftItems->Aircraft ?? null;
+        if ($items) {
+            foreach ($items as $item) {
+                if (strtoupper((string)$item->Registration) === strtoupper($registration)) {
+                    $ac = $item; break;
+                }
+            }
+            if (!$ac) $ac = $items[0] ?? null;
+        }
     }
     if (!$ac) return null;
 
@@ -118,6 +136,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration'])) {
         $aircraftData = fetchFseAircraft($registration, $userFseKey);
         if (!$aircraftData) {
             $error = "Immatriculation « $registration » introuvable sur FSEconomy.";
+            // Debug : affiche les 800 premiers caractères du XML reçu
+            if (!empty($GLOBALS['_fse_debug_xml'])) {
+                $error .= '<br><pre style="font-size:11px;margin-top:8px;white-space:pre-wrap">' . htmlspecialchars($GLOBALS['_fse_debug_xml']) . '</pre>';
+            }
         } else {
             $offers = computeOffers($aircraftData['engine_price'], $aircraftData['tbo_hours'], $aircraftData['current_hours']);
             $result = ['aircraft' => $aircraftData, 'offers' => $offers];
@@ -152,7 +174,7 @@ include __DIR__ . '/../includes/header.php';
     <p class="text-slate-500 text-sm mb-8">Saisissez l'immatriculation FSE de votre avion pour voir vos options.</p>
 
     <?php if ($error): ?>
-    <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded mb-6 text-sm"><?= htmlspecialchars($error) ?></div>
+    <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded mb-6 text-sm"><?= $error ?></div>
     <?php endif; ?>
 
     <?php if (isLoggedIn() && !$userFseKey): ?>
