@@ -5,11 +5,11 @@ require_once __DIR__ . '/../includes/db.php';
 // Appel FSEconomy datafeed
 function fetchFseAircraft(string $registration, string $fseKey): ?array {
     $url = 'https://server.fseconomy.net/data?' . http_build_query([
-        'servicekey' => $fseKey,
-        'format'     => 'xml',
-        'query'      => 'aircraft',
-        'search'     => 'key',
-        'id'         => $registration,
+        'userkey'     => $fseKey,
+        'format'      => 'xml',
+        'query'       => 'aircraft',
+        'search'      => 'registration',
+        'aircraftreg' => $registration,
     ]);
 
     $ctx = stream_context_create(['http' => ['timeout' => 15]]);
