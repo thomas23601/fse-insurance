@@ -174,4 +174,51 @@ include __DIR__ . '/../includes/header.php';
     <!-- Résultat avion -->
     <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-6 flex items-center gap-4 shadow-sm">
         <div class="text-3xl">✈️</div>
-        <d
+        <div class="flex-1">
+            <div class="font-semibold text-slate-900"><?= htmlspecialchars($result['aircraft']['registration']) ?> — <?= htmlspecialchars($result['aircraft']['model']) ?></div>
+            <div class="text-sm text-slate-500"><?= $result['aircraft']['type'] ?> · Base : <?= $result['aircraft']['home_base'] ?> · <?= $result['aircraft']['current_hours'] ?> h cellule</div>
+        </div>
+        <span class="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">OK</span>
+    </div>
+
+    <!-- Cartes offres -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <?php foreach ($result['offers'] as $key => $offer): ?>
+        <div class="bg-white border-2 <?= $key === 'confort' ? 'border-blue-500' : 'border-slate-200' ?> rounded-2xl overflow-hidden">
+            <?php if ($key === 'confort'): ?>
+                <div class="bg-blue-600 text-white text-xs font-bold text-center py-2 uppercase tracking-widest">Recommandé</div>
+            <?php endif; ?>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1"><?= $offer['name'] ?></div>
+                <div class="text-3xl font-bold text-slate-900 mb-1"><?= number_format($offer['price'], 0) ?> <span class="text-sm font-normal text-slate-500">$/mois</span></div>
+                <div class="text-xs text-slate-400 mb-4">Engagement <?= $offer['engagement'] ?> mois<?= $offer['discount'] > 0 ? ' · -' . $offer['discount'] . ' %' : '' ?></div>
+                <div class="text-sm text-slate-600 space-y-1 mb-5">
+                    <div>Franchise : <strong><?= number_format($offer['franchise'], 0) ?> $</strong></div>
+                    <div>Plafond : <strong>3 000 $</strong></div>
+                </div>
+                <?php if (isLoggedIn()): ?>
+                <form method="POST">
+                    <input type="hidden" name="save_offer" value="1">
+                    <input type="hidden" name="registration" value="<?= htmlspecialchars($result['aircraft']['registration']) ?>">
+                    <input type="hidden" name="model" value="<?= htmlspecialchars($result['aircraft']['model']) ?>">
+                    <input type="hidden" name="offer_type" value="<?= $key ?>">
+                    <input type="hidden" name="price" value="<?= $offer['price'] ?>">
+                    <input type="hidden" name="franchise" value="<?= $offer['franchise'] ?>">
+                    <input type="hidden" name="engagement" value="<?= $offer['engagement'] ?>">
+                    <button type="submit" class="w-full <?= $key === 'confort' ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'border border-blue-500 text-blue-600 hover:bg-blue-50' ?> font-semibold py-2.5 rounded-xl transition text-sm">
+                        Enregistrer ce devis
+                    </button>
+                </form>
+                <?php else: ?>
+                <a href="/login.php" class="block text-center border border-slate-300 text-slate-500 hover:bg-slate-50 font-medium py-2.5 rounded-xl transition text-sm">
+                    Connexion pour sauvegarder
+                </a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<?php include __DIR__ . '/../includes/footer.php'; ?>

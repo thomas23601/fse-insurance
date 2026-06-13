@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm  = $_POST['password_confirmation'] ?? '';
+    $fseKey   = trim($_POST['fse_key'] ?? '');
 
     if (!$name || !$email || !$password) {
         $error = 'Tous les champs sont obligatoires.';
@@ -28,12 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Cet email est déjà utilisé.';
         } else {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare('INSERT INTO users (name, email, password) VALUES (?, ?, ?)');
-            $stmt->execute([$name, $email, $hash]);
+            $stmt = $pdo->prepare('INSERT INTO users (name, email, password, fse_key) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$name, $email, $hash, $fseKey ?: null]);
             $userId = $pdo->lastInsertId();
 
             $_SESSION['user_id'] = $userId;
-            $_SESSION['user']    = ['id' => $userId, 'name' => $name, 'email' => $email, 'role' => 'client'];
+            $_SESSION['user']    = ['id' => $userId, 'name' => $name, 'email' => $email, 'role' => 'client', 'fse_key' => $fseKey ?: null];
 
             header('Location: /dashboard.php');
             exit;
@@ -70,6 +71,13 @@ include __DIR__ . '/../includes/header.php';
             <label class="block text-sm font-medium text-slate-700 mb-1.5">Confirmer le mot de passe</label>
             <input type="password" name="password_confirmation" required
                    class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Clé personnelle FSEconomy</label>
+            <input type="text" name="fse_key" value="<?= htmlspecialchars($_POST['fse_key'] ?? '') ?>"
+                   placeholder="ex: 16A8314454ABB51F"
+                   class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+            <p class="text-xs text-slate-400 mt-1">Nécessaire pour interroger les données de vos avions. Trouvable dans votre profil FSEconomy.</p>
         </div>
         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition">
             Créer mon compte
